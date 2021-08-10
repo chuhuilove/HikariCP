@@ -29,7 +29,7 @@
 
    <groupId>com.zaxxer</groupId>
    <artifactId>HikariCP</artifactId>
-   <version>3.2.0</version>
+   <version>3.2.0-cyzi</version>
    <packaging>bundle</packaging>
 
    <name>HikariCP</name>
@@ -388,7 +388,7 @@
                   <!-- Sets the VM argument line used when unit tests are run. -->
                   <argLine>${surefireArgLine} ${sureFireOptions9}</argLine>
                   <!-- Skips unit tests if the value of skip.unit.tests property is true -->
-                  <skipTests>${skip.unit.tests}</skipTests>
+                  <skipTests>true</skipTests>
                   <reuseForks>${sureFireForks9}</reuseForks>
                </configuration>
             </plugin>
