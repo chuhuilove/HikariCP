@@ -63,8 +63,11 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
- * This is the primary connection pool class that provides the basic
- * pooling behavior for HikariCP.
+ *
+ * HikariCP
+ *
+ * 这是为HikariCP提供基础池行为的主要连接池类
+ *
  *
  * @author Brett Wooldridge
  */
@@ -152,7 +155,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     */
    public Connection getConnection() throws SQLException
    {
-      return getConnection(connectionTimeout);
+      Connection connection = getConnection(connectionTimeout);
+      System.err.println("current Thread:"+Thread.currentThread().getName()+",获得connection 对象:"+connection);
+      return connection;
    }
 
    /**

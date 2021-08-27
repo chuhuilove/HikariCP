@@ -31,6 +31,7 @@ import static com.zaxxer.hikari.util.ClockSource.currentTime;
 
 /**
  * This is the proxy class for java.sql.Connection.
+ * 这是java.sql.Connection的代理类
  *
  * @author Brett Wooldridge
  */

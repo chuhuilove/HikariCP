@@ -117,7 +117,6 @@ public final class DriverDataSource implements DataSource
    public Connection getConnection() throws SQLException
    {
       Connection connect = driver.connect(jdbcUrl, driverProperties);
-      System.err.println("DriverDataSource#getCOnnection--->创建connection:"+connect);
       return connect;
    }
 
@@ -136,7 +135,7 @@ public final class DriverDataSource implements DataSource
       }
       Connection connect = driver.connect(jdbcUrl, cloned);
 
-      System.err.println("DriverDataSource#getCOnnection--->创建connection:"+connect+",username:"+username+",password:"+password);
+      System.err.println("有参DriverDataSource#getConnection--->创建connection:"+connect+",username:"+username+",password:"+password);
 
       return connect;
    }
