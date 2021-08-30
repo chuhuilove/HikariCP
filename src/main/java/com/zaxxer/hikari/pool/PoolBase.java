@@ -59,6 +59,9 @@ abstract class PoolBase
    protected volatile String catalog;
    protected final String poolName;
 
+   /**
+    * 如果未配置,则默认30s
+    */
    long connectionTimeout;
    long validationTimeout;
 

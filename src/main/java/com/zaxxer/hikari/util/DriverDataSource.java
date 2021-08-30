@@ -135,8 +135,6 @@ public final class DriverDataSource implements DataSource
       }
       Connection connect = driver.connect(jdbcUrl, cloned);
 
-      System.err.println("有参DriverDataSource#getConnection--->创建connection:"+connect+",username:"+username+",password:"+password);
-
       return connect;
    }
 

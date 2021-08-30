@@ -93,6 +93,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    private final ThreadPoolExecutor addConnectionExecutor;
    private final ThreadPoolExecutor closeConnectionExecutor;
 
+   /**
+    * 存储Connection对象的类
+    */
    private final ConcurrentBag<PoolEntry> connectionBag;
 
    private final ProxyLeakTaskFactory leakTaskFactory;
@@ -102,7 +105,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    private ScheduledFuture<?> houseKeeperTask;
 
    /**
-    * Construct a HikariPool with the specified configuration.
+    * 用指定的配置来构造一个HikariPool对象
     *
     * @param config a HikariConfig instance
     */
@@ -156,7 +159,6 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    public Connection getConnection() throws SQLException
    {
       Connection connection = getConnection(connectionTimeout);
-      System.err.println("current Thread:"+Thread.currentThread().getName()+",获得connection 对象:"+connection);
       return connection;
    }
 
@@ -187,7 +189,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
             }
             else {
                metricsTracker.recordBorrowStats(poolEntry, startTime);
-               return poolEntry.createProxyConnection(leakTaskFactory.schedule(poolEntry), now);
+               Connection proxyConnection = poolEntry.createProxyConnection(leakTaskFactory.schedule(poolEntry), now);
+               LOGGER.info("create connection object:{}.",proxyConnection);
+               return proxyConnection;
             }
          } while (timeout > 0L);
 

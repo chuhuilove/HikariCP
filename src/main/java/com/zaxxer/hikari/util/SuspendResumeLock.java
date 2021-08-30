@@ -21,6 +21,7 @@ import java.sql.SQLTransientException;
 import java.util.concurrent.Semaphore;
 
 /**
+ * 这个类实现了一个锁,可以用来悬挂和暂停pool.
  * This class implements a lock that can be used to suspend and resume the pool.  It
  * also provides a faux implementation that is used when the feature is disabled that
  * hopefully gets fully "optimized away" by the JIT.

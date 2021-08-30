@@ -78,6 +78,7 @@ public class HikariDataSource extends HikariConfig implements DataSource, Closea
       configuration.copyStateTo(this);
 
       LOGGER.info("{} - Starting...", configuration.getPoolName());
+      // 为什么设计两个地址相同的HikariPool呢
       pool = fastPathPool = new HikariPool(this);
       LOGGER.info("{} - Start completed.", configuration.getPoolName());
 
