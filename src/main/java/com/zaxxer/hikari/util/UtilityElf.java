@@ -115,7 +115,7 @@ public final class UtilityElf
    }
 
    /**
-    * Create a ThreadPoolExecutor.
+    * 创建ThreadPoolExecutor.
     *
     * @param queueSize the queue size
     * @param threadName the thread name
@@ -136,7 +136,7 @@ public final class UtilityElf
    }
 
    /**
-    * Create a ThreadPoolExecutor.
+    * 创建ThreadPoolExecutor.
     *
     * @param queue the BlockingQueue to use
     * @param threadName the thread name
@@ -150,6 +150,7 @@ public final class UtilityElf
          threadFactory = new DefaultThreadFactory(threadName, true);
       }
 
+      // 创建只有一个线程的线程池
       ThreadPoolExecutor executor = new ThreadPoolExecutor(1 /*core*/, 1 /*max*/, 5 /*keepalive*/, SECONDS, queue, threadFactory, policy);
       executor.allowCoreThreadTimeOut(true);
       return executor;

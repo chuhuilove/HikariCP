@@ -85,12 +85,25 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    private final long HOUSEKEEPING_PERIOD_MS = Long.getLong("com.zaxxer.hikari.housekeeping.periodMs", SECONDS.toMillis(30));
 
    private static final String EVICTED_CONNECTION_MESSAGE = "(connection was evicted)";
+   /**
+    * Connection对象死亡描述
+    */
    private static final String DEAD_CONNECTION_MESSAGE = "(connection is dead)";
 
+   /**
+    * entry 创建器
+    *
+    */
    private final PoolEntryCreator POOL_ENTRY_CREATOR = new PoolEntryCreator(null /*logging prefix*/);
    private final PoolEntryCreator POST_FILL_POOL_ENTRY_CREATOR = new PoolEntryCreator("After adding ");
    private final Collection<Runnable> addConnectionQueue;
+   /**
+    * 创建Connection对象的的executor
+    */
    private final ThreadPoolExecutor addConnectionExecutor;
+   /**
+    * 关闭Connection的executor
+    */
    private final ThreadPoolExecutor closeConnectionExecutor;
 
    /**
@@ -101,6 +114,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    private final ProxyLeakTaskFactory leakTaskFactory;
    private final SuspendResumeLock suspendResumeLock;
 
+   /**
+    * 这个Service是做什么的?还没看出来
+    */
    private final ScheduledExecutorService houseKeepingExecutorService;
    private ScheduledFuture<?> houseKeeperTask;
 
@@ -114,6 +130,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
       super(config);
 
       this.connectionBag = new ConcurrentBag<>(this);
+      // config.isAllowPoolSuspension()如果不设置,则默认为false,意味着获取Connection对象,没有线程并发上的限制.
       this.suspendResumeLock = config.isAllowPoolSuspension() ? new SuspendResumeLock() : SuspendResumeLock.FAUX_LOCK;
 
       this.houseKeepingExecutorService = initializeHouseKeepingExecutorService();
@@ -135,7 +152,10 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
       LinkedBlockingQueue<Runnable> addConnectionQueue = new LinkedBlockingQueue<>(config.getMaximumPoolSize());
       this.addConnectionQueue = unmodifiableCollection(addConnectionQueue);
+
+      // 初始化添加Connection对象的线程池
       this.addConnectionExecutor = createThreadPoolExecutor(addConnectionQueue, poolName + " connection adder", threadFactory, new ThreadPoolExecutor.DiscardPolicy());
+      // 初始化关闭Connection对象的线程池
       this.closeConnectionExecutor = createThreadPoolExecutor(config.getMaximumPoolSize(), poolName + " connection closer", threadFactory, new ThreadPoolExecutor.CallerRunsPolicy());
 
       this.leakTaskFactory = new ProxyLeakTaskFactory(config.getLeakDetectionThreshold(), houseKeepingExecutorService);
@@ -151,19 +171,18 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    }
 
    /**
-    * Get a connection from the pool, or timeout after connectionTimeout milliseconds.
+    * 从池中获取连接,或在{@link #connectionTimeout}毫秒后超时.
     *
     * @return a java.sql.Connection instance
     * @throws SQLException thrown if a timeout occurs trying to obtain a connection
     */
    public Connection getConnection() throws SQLException
    {
-      Connection connection = getConnection(connectionTimeout);
-      return connection;
+      return getConnection(connectionTimeout);
    }
 
    /**
-    * Get a connection from the pool, or timeout after the specified number of milliseconds.
+    * 从池中获取连接,或在{@link #connectionTimeout}毫秒后超时.
     *
     * @param hardTimeout the maximum time to wait for a connection from the pool
     * @return a java.sql.Connection instance
@@ -179,19 +198,22 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
          do {
             PoolEntry poolEntry = connectionBag.borrow(timeout, MILLISECONDS);
             if (poolEntry == null) {
+               // 获取entry为空,则直接超时,抛异常
                break; // We timed out... break and throw exception
             }
 
             final long now = currentTime();
-            if (poolEntry.isMarkedEvicted() || (elapsedMillis(poolEntry.lastAccessed, now) > ALIVE_BYPASS_WINDOW_MS && !isConnectionAlive(poolEntry.connection))) {
+            // 如果poolEntry被标记为驱逐
+            // 或者非活跃
+            if (poolEntry.isMarkedEvicted() ||
+               (elapsedMillis(poolEntry.lastAccessed, now) > ALIVE_BYPASS_WINDOW_MS && !isConnectionAlive(poolEntry.connection))
+            ) {
                closeConnection(poolEntry, poolEntry.isMarkedEvicted() ? EVICTED_CONNECTION_MESSAGE : DEAD_CONNECTION_MESSAGE);
                timeout = hardTimeout - elapsedMillis(startTime);
             }
             else {
                metricsTracker.recordBorrowStats(poolEntry, startTime);
-               Connection proxyConnection = poolEntry.createProxyConnection(leakTaskFactory.schedule(poolEntry), now);
-               LOGGER.info("create connection object:{}.",proxyConnection);
-               return proxyConnection;
+               return poolEntry.createProxyConnection(leakTaskFactory.schedule(poolEntry), now);
             }
          } while (timeout > 0L);
 
@@ -336,6 +358,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    @Override
    public void addBagItem(final int waiting)
    {
+      /**
+       * 实现的{@link IBagStateListener}接口,
+       */
       final boolean shouldAdd = waiting - addConnectionQueue.size() >= 0; // Yes, >= is intentional.
       if (shouldAdd) {
          addConnectionExecutor.submit(POOL_ENTRY_CREATOR);
@@ -467,8 +492,8 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    // ***********************************************************************
 
    /**
-    * Creating new poolEntry.  If maxLifetime is configured, create a future End-of-life task with 2.5% variance from
-    * the maxLifetime time to ensure there is no massive die-off of Connections in the pool.
+    * 创建新poolEntry.
+    * 如果配置了maxLifetime,则创建一个异步的end -life任务,该任务与maxLifetime时间相差2.5%,以确保池中没有大规模的Connection死亡.
     */
    private PoolEntry createPoolEntry()
    {
@@ -477,6 +502,8 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
          final long maxLifetime = config.getMaxLifetime();
          if (maxLifetime > 0) {
+            // 如果配置的最大生存时间大于零,则设置一个定时器,让其滚犊子
+            // 这个设计很有意思...
             // variance up to 2.5% of the maxlifetime
             final long variance = maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0;
             final long lifetime = maxLifetime - variance;
@@ -497,6 +524,32 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
          }
          return null;
       }
+   }
+
+   public static void main(String[] args) {
+
+      long maxLifetime=20_000;
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println("////////////////////////////////////////////////////////////////////////////////////////");
+      maxLifetime=15_000;
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println("////////////////////////////////////////////////////////////////////////////////////////");
+      maxLifetime=9_000;
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+      System.err.println(maxLifetime > 10_000 ? ThreadLocalRandom.current().nextLong( maxLifetime / 40 ) : 0);
+
+
    }
 
    /**
@@ -534,6 +587,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
    /**
     * If initializationFailFast is configured, check that we have DB connectivity.
+    * 如果已经配置了initializationFailFast,检查DB连通性
     *
     * @throws PoolInitializationException if fails to create or validate connection
     * @see HikariConfig#setInitializationFailTimeout(long)
@@ -586,6 +640,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    }
 
    /**
+    * 从pool中"软"驱逐一个Connection.
     * "Soft" evict a Connection (/PoolEntry) from the pool.  If this method is being called by the user directly
     * through {@link com.zaxxer.hikari.HikariDataSource#evictConnection(Connection)} then {@code owner} is {@code true}.
     *
@@ -610,6 +665,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    }
 
    /**
+    * 创建/初始化
     * Create/initialize the Housekeeping service {@link ScheduledExecutorService}.  If the user specified an Executor
     * to be used in the {@link HikariConfig}, then we use that.  If no Executor was specified (typical), then create
     * an Executor and configure it.
@@ -619,6 +675,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    private ScheduledExecutorService initializeHouseKeepingExecutorService()
    {
       if (config.getScheduledExecutor() == null) {
+         // 如果没有配置scheduledExecutor
          final ThreadFactory threadFactory = Optional.ofNullable(config.getThreadFactory()).orElse(new DefaultThreadFactory(poolName + " housekeeper", true));
          final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, threadFactory, new ThreadPoolExecutor.DiscardPolicy());
          executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);

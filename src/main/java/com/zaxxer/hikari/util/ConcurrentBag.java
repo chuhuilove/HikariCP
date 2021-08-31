@@ -66,6 +66,10 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
 {
    private static final Logger LOGGER = LoggerFactory.getLogger(ConcurrentBag.class);
 
+   /**
+    * 这个,才是真正存储Connection对象的地方
+    * 换句话说,这才是Hikari连接池的内核.
+    */
    private final CopyOnWriteArrayList<T> sharedList;
    private final boolean weakThreadLocals;
 
@@ -78,7 +82,17 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
 
    public interface IConcurrentBagEntry
    {
+      /**
+       * 用来描述持有Connection对象的那个对象的状态
+       */
+
+      /**
+       * 空闲的Connectin
+       */
       int STATE_NOT_IN_USE = 0;
+      /**
+       * 活跃的Connection
+       */
       int STATE_IN_USE = 1;
       int STATE_REMOVED = -1;
       int STATE_RESERVED = -2;
@@ -117,6 +131,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
    /**
     * The method will borrow a BagEntry from the bag, blocking for the
     * specified timeout if none are available.
+    * 该方法将从包中借用BagEntry,如果没有可用的BagEntry,则在指定的超时时阻塞.
     *
     * @param timeout how long to wait before giving up, in units of unit
     * @param timeUnit a <code>TimeUnit</code> determining how to interpret the timeout parameter
@@ -219,6 +234,8 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
    }
 
    /**
+    * 从bag中移除value.这个方法应该只能被<code>borrow(long, TimeUnit)</code>或<code>reserve(T)</code>
+    * 调用
     * Remove a value from the bag.  This method should only be called
     * with objects obtained by <code>borrow(long, TimeUnit)</code> or <code>reserve(T)</code>
     *

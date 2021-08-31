@@ -34,8 +34,18 @@ public final class DriverDataSource implements DataSource
 {
    private static final Logger LOGGER = LoggerFactory.getLogger(DriverDataSource.class);
 
+   /**
+    * 创建Connection对象所需的url
+    */
    private final String jdbcUrl;
+   /**
+    * 创建Connection对象所需的属性
+    * @see Driver#connect(String, Properties)
+    */
    private final Properties driverProperties;
+   /**
+    * 创建Connection对象所需的驱动类,比如:com.mysql.jdbc.Driver
+    */
    private Driver driver;
 
    public DriverDataSource(String jdbcUrl, String driverClassName, Properties properties, String username, String password)
@@ -116,6 +126,7 @@ public final class DriverDataSource implements DataSource
    @Override
    public Connection getConnection() throws SQLException
    {
+      // 简单粗暴,直接通过Driver创建新的Connection
       Connection connect = driver.connect(jdbcUrl, driverProperties);
       return connect;
    }
@@ -133,6 +144,7 @@ public final class DriverDataSource implements DataSource
       if (password != null) {
          cloned.put("password", password);
       }
+      // 简单粗暴,直接通过Driver创建新的Connection
       Connection connect = driver.connect(jdbcUrl, cloned);
 
       return connect;

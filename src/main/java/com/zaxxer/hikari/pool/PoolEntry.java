@@ -38,17 +38,26 @@ final class PoolEntry implements IConcurrentBagEntry
    private static final Logger LOGGER = LoggerFactory.getLogger(PoolEntry.class);
    private static final AtomicIntegerFieldUpdater<PoolEntry> stateUpdater;
 
+   /**
+    * 当前Entry持有的Connection对象
+    */
    Connection connection;
    long lastAccessed;
    long lastBorrowed;
 
    @SuppressWarnings("FieldCanBeLocal")
    private volatile int state = 0;
+   /**
+    * 是否被驱逐?
+    */
    private volatile boolean evict;
 
    private volatile ScheduledFuture<?> endOfLife;
 
    private final FastList<Statement> openStatements;
+   /**
+    * 当前Entry所属的连接池
+    */
    private final HikariPool hikariPool;
 
    private final boolean isReadOnly;

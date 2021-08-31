@@ -33,7 +33,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.zaxxer.hikari.pool.HikariPool.POOL_SHUTDOWN;
 
 /**
- * The HikariCP pooled DataSource.
+ * HikariCP Connection 池.
+ * 这个类是对外的接口
  *
  * @author Brett Wooldridge
  */
@@ -98,13 +99,15 @@ public class HikariDataSource extends HikariConfig implements DataSource, Closea
       }
 
       if (fastPathPool != null) {
-         return fastPathPool.getConnection();
+         Connection connection = fastPathPool.getConnection();
+         return connection;
       }
 
       // See http://en.wikipedia.org/wiki/Double-checked_locking#Usage_in_Java
       HikariPool result = pool;
       if (result == null) {
          synchronized (this) {
+            // 创建新的连接池
             result = pool;
             if (result == null) {
                validate();

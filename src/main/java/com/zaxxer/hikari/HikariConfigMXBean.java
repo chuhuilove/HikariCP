@@ -18,50 +18,47 @@ package com.zaxxer.hikari;
 
 /**
  * The javax.management MBean for a Hikari pool configuration.
+ * 定义Connection的核心属性
  *
  * @author Brett Wooldridge
  */
 public interface HikariConfigMXBean
 {
    /**
-    * Get the maximum number of milliseconds that a client will wait for a connection from the pool. If this
-    * time is exceeded without a connection becoming available, a SQLException will be thrown from
-    * {@link javax.sql.DataSource#getConnection()}.
+    * 获取客户端等待池中Connection的最大毫秒数.
+    * 如果在没有连接可用的情况下超过此时间,则会从{@link javax.sql.DataSource#getConnection()} 抛出 SQLException.
     *
     * @return the connection timeout in milliseconds
     */
    long getConnectionTimeout();
 
    /**
-    * Set the maximum number of milliseconds that a client will wait for a connection from the pool. If this
-    * time is exceeded without a connection becoming available, a SQLException will be thrown from
-    * {@link javax.sql.DataSource#getConnection()}.
+    * 设置客户端等待池中Connection的最大毫秒数.
+    * 如果在没有连接可用的情况下超过此时间,则会从{@link javax.sql.DataSource#getConnection()}抛出SQLException.
     *
     * @param connectionTimeoutMs the connection timeout in milliseconds
     */
    void setConnectionTimeout(long connectionTimeoutMs);
 
    /**
-    * Get the maximum number of milliseconds that the pool will wait for a connection to be validated as
-    * alive.
+    * 获取池等待Connection被验证为活跃的最大毫秒数.
     *
     * @return the validation timeout in milliseconds
     */
    long getValidationTimeout();
 
    /**
-    * Sets the maximum number of milliseconds that the pool will wait for a connection to be validated as
-    * alive.
+    * 设置池等待Connection被验证为活跃的最大毫秒数.
     *
     * @param validationTimeoutMs the validation timeout in milliseconds
     */
    void setValidationTimeout(long validationTimeoutMs);
 
    /**
-    * This property controls the maximum amount of time (in milliseconds) that a connection is allowed to sit
-    * idle in the pool. Whether a connection is retired as idle or not is subject to a maximum variation of +30
-    * seconds, and average variation of +15 seconds. A connection will never be retired as idle before this timeout.
-    * A value of 0 means that idle connections are never removed from the pool.
+    * 此属性控制允许Connection在池中闲置的最长时间(以毫秒为单位).
+    * Connection是否以空闲状态被清除,最大变化为+30秒,平均变化为+15秒.
+    * 在此超时之前,Connection永远不会以空闲状态被清除.
+    * 值为0意味着永远不会从池中删除空闲Connection.
     *
     * @return the idle timeout in milliseconds
     */
@@ -86,8 +83,7 @@ public interface HikariConfigMXBean
    long getLeakDetectionThreshold();
 
    /**
-    * This property controls the amount of time that a connection can be out of the pool before a message is
-    * logged indicating a possible connection leak. A value of 0 means leak detection is disabled.
+    * 此属性控制在记录指示可能的连接泄漏的消息之前连接可以离开池的时间量.0表示关闭泄漏检测.
     *
     * @param leakDetectionThresholdMs the connection leak detection threshold in milliseconds
     */
@@ -103,47 +99,41 @@ public interface HikariConfigMXBean
    long getMaxLifetime();
 
    /**
-    * This property controls the maximum lifetime of a connection in the pool. When a connection reaches this
-    * timeout, even if recently used, it will be retired from the pool. An in-use connection will never be
-    * retired, only when it is idle will it be removed.
+    * 此属性控制池中Connection的最大生存时间.当连接达到此超时时,即使是最近使用的连接,也将从连接池中退出.
+    * 一个正在使用中的Connection永远不会被清除,只有当它空闲时,它才会被删除
     *
     * @param maxLifetimeMs the maximum connection lifetime in milliseconds
     */
    void setMaxLifetime(long maxLifetimeMs);
 
    /**
-    * The property controls the minimum number of idle connections that HikariCP tries to maintain in the pool,
-    * including both idle and in-use connections. If the idle connections dip below this value, HikariCP will
-    * make a best effort to restore them quickly and efficiently.
-    *
+    * 该属性控制HikariCP试图在池中维护的最小空闲连接数,包括空闲连接和正在使用的连接.
+    * 如果空闲连接低于这个值,HikariCP将尽最大努力快速有效地恢复它们.
     * @return the minimum number of connections in the pool
     */
    int getMinimumIdle();
 
    /**
-    * The property controls the minimum number of idle connections that HikariCP tries to maintain in the pool,
-    * including both idle and in-use connections. If the idle connections dip below this value, HikariCP will
-    * make a best effort to restore them quickly and efficiently.
+    *
+    * 该属性控制HikariCP试图在池中维护的最小空闲连接数,包括空闲连接和正在使用的连接.
+    * 如果空闲连接低于这个值,HikariCP将尽最大努力快速有效地恢复它们.
     *
     * @param minIdle the minimum number of idle connections in the pool to maintain
     */
    void setMinimumIdle(int minIdle);
 
    /**
-    * The property controls the maximum number of connections that HikariCP will keep in the pool,
-    * including both idle and in-use connections.
+    * 该属性控制HikariCP将保留在池中的最大连接数,包括空闲连接和正在使用的连接.
     *
     * @return the maximum number of connections in the pool
     */
    int getMaximumPoolSize();
 
    /**
-    * The property controls the maximum size that the pool is allowed to reach, including both idle and in-use
-    * connections. Basically this value will determine the maximum number of actual connections to the database
-    * backend.
+    * 该属性控制允许池达到的最大大小,包括空闲和使用中的连接.
+    * 基本上这个值将决定到数据库后端的最大实际连接数.
     * <p>
-    * When the pool reaches this size, and no idle connections are available, calls to getConnection() will
-    * block for up to connectionTimeout milliseconds before timing out.
+    * 当池达到此大小并且没有空闲连接可用时,对getConnection()的调用将在超时前阻塞最多connectionTimeout毫秒.
     *
     * @param maxPoolSize the maximum number of connections in the pool
     */
@@ -169,7 +159,7 @@ public interface HikariConfigMXBean
 
 
    /**
-    * The name of the connection pool.
+    * connection pool的名称
     *
     * @return the name of the connection pool
     */

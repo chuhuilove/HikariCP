@@ -62,40 +62,86 @@ public class HikariConfig implements HikariConfigMXBean
    // Properties changeable at runtime through the HikariConfigMXBean
    //
    private volatile String catalog;
+   /**
+    * 获取Connection的超时时间,默认为30s
+    */
    private volatile long connectionTimeout;
+   /**
+    * Connection验证超时时间
+    */
    private volatile long validationTimeout;
+   /**
+    * Connection在池中闲置的最长时间,默认为10min
+    */
    private volatile long idleTimeout;
    private volatile long leakDetectionThreshold;
+   /**
+    * 池中Connection的最大生存时间,默认值为30min
+    */
    private volatile long maxLifetime;
+   /**
+    * 连接池的最大容量
+    */
    private volatile int maxPoolSize;
    private volatile int minIdle;
+   /**
+    * 用户名
+    */
    private volatile String username;
+   /**
+    * 密码
+    */
    private volatile String password;
 
    // Properties NOT changeable at runtime
    //
    private long initializationFailTimeout;
    private String connectionInitSql;
+   /**
+    * 测试连接的查询执行语句
+    * 比如:select 1+1 form dual;
+    */
    private String connectionTestQuery;
    private String dataSourceClassName;
    private String dataSourceJndiName;
+   /**
+    * 驱动类名称
+    */
    private String driverClassName;
+   /**
+    * 连接到数据的url
+    */
    private String jdbcUrl;
+   /**
+    * 连接池名称
+    */
    private String poolName;
    private String schema;
+   /**
+    * 隔离级别名称
+    */
    private String transactionIsolationName;
    private boolean isAutoCommit;
    private boolean isReadOnly;
    private boolean isIsolateInternalQueries;
    private boolean isRegisterMbeans;
+   /**
+    * 允许获取Connection对象是否有并发线程的限制
+    */
    private boolean isAllowPoolSuspension;
    private DataSource dataSource;
+   /**
+    * dataSource属性
+    */
    private Properties dataSourceProperties;
    private ThreadFactory threadFactory;
    private ScheduledExecutorService scheduledExecutor;
    private MetricsTrackerFactory metricsTrackerFactory;
    private Object metricRegistry;
    private Object healthCheckRegistry;
+   /**
+    * 健康检查属性
+    */
    private Properties healthCheckProperties;
 
    private volatile boolean sealed;
@@ -105,6 +151,7 @@ public class HikariConfig implements HikariConfigMXBean
     */
    public HikariConfig()
    {
+
       dataSourceProperties = new Properties();
       healthCheckProperties = new Properties();
 
@@ -876,6 +923,7 @@ public class HikariConfig implements HikariConfigMXBean
 
    void seal()
    {
+      // 当DataSource中的pool被初始化以后,就不能再修改pool了
       this.sealed = true;
    }
 
@@ -1017,7 +1065,7 @@ public class HikariConfig implements HikariConfigMXBean
    @SuppressWarnings("StatementWithEmptyBody")
    private void logConfiguration()
    {
-      LOGGER.debug("{} - configuration:", poolName);
+      LOGGER.info("{} - configuration:", poolName);
       final Set<String> propertyNames = new TreeSet<>(PropertyElf.getPropertyNames(HikariConfig.class));
       for (String prop : propertyNames) {
          try {
@@ -1049,7 +1097,7 @@ public class HikariConfig implements HikariConfigMXBean
             else if (value == null) {
                value = "none";
             }
-            LOGGER.debug((prop + "................................................").substring(0, 32) + value);
+            LOGGER.info((prop + "................................................").substring(0, 32) + value);
          }
          catch (Exception e) {
             // continue
