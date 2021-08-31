@@ -152,6 +152,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
       }
 
       // Otherwise, scan the shared list ... then poll the handoff queue
+      // waiters+=1
       final int waiting = waiters.incrementAndGet();
       try {
          for (T bagEntry : sharedList) {
@@ -180,6 +181,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
          return null;
       }
       finally {
+         // waiters-=1
          waiters.decrementAndGet();
       }
    }
