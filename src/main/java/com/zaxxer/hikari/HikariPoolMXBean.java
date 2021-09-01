@@ -72,20 +72,19 @@ public interface HikariPoolMXBean
    void softEvictConnections();
 
    /**
-    * Suspend the pool.  When the pool is suspended, threads calling {@link DataSource#getConnection()} will be
-    * blocked <i>with no timeout</i> until the pool is resumed via the {@link #resumePool()} method.
+    * 暂停连接池.当连接池被暂停,调用{@link DataSource#getConnection()}的线程将被阻塞
+    * <i>且不会超时</i>,直到通过调用{@link #resumePool()}方法恢复连接池.
+    *
     * <br>
-    * This method has no effect unless the {@link HikariConfig#setAllowPoolSuspension(boolean)} method or equivalent
-    * property has been set to {@code true}.
+    * 除非{@link HikariConfig#setAllowPoolSuspension(boolean)}方法或等效属性被设置为{@code true},否则此方法无效.
     */
    void suspendPool();
 
    /**
-    * Resume the pool.  Enables connection borrowing to resume on a pool that has been suspended via the
+    * 恢复连接池. Enables connection borrowing to resume on a pool that has been suspended via the
     * {@link #suspendPool()} method.
     * <br>
-    * This method has no effect unless the {@link HikariConfig#setAllowPoolSuspension(boolean)} method or equivalent
-    * property has been set to {@code true}.
+    * 除非{@link HikariConfig#setAllowPoolSuspension(boolean)}方法或等效属性被设置为{@code true},否则此方法无效.
     */
    void resumePool();
 }

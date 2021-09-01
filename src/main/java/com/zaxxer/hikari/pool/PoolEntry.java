@@ -172,6 +172,10 @@ final class PoolEntry implements IConcurrentBagEntry
       stateUpdater.set(this, update);
    }
 
+   /**
+    * 外部发出请求,要关闭当前持有的Connection对象
+    * @return
+    */
    Connection close()
    {
       ScheduledFuture<?> eol = endOfLife;

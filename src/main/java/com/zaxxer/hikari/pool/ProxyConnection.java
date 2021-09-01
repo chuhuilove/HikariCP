@@ -218,7 +218,9 @@ public abstract class ProxyConnection implements Connection
    //              "Overridden" java.sql.Connection Methods
    // **********************************************************************
 
-   /** {@inheritDoc} */
+   /**
+    * 外部调用Connection的close方法时,回收
+    * */
    @Override
    public final void close() throws SQLException
    {

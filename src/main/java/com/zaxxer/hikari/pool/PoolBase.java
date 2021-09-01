@@ -132,6 +132,10 @@ abstract class PoolBase {
       return poolName;
    }
 
+   /**
+    * 回收Connection
+    * @param poolEntry
+    */
    abstract void recycle(final PoolEntry poolEntry);
 
    // ***********************************************************************

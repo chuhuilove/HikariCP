@@ -28,6 +28,7 @@ import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_REM
 import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_RESERVED;
 
 import java.lang.ref.WeakReference;
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -78,6 +79,11 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
    private final AtomicInteger waiters;
    private volatile boolean closed;
 
+   /**
+    * 新创建Connection的时候,向这个里面添加
+    * 回收的时候,向这个里面添加
+    * 设置这样一个同步队列的目的是什么?
+    */
    private final SynchronousQueue<T> handoffQueue;
 
    public interface IConcurrentBagEntry
@@ -94,7 +100,13 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
        * 活跃的Connection
        */
       int STATE_IN_USE = 1;
+      /**
+       * 被移除
+       */
       int STATE_REMOVED = -1;
+      /**
+       *
+       */
       int STATE_RESERVED = -2;
 
       boolean compareAndSet(int expectState, int newState);
@@ -117,6 +129,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
       this.listener = listener;
       this.weakThreadLocals = useWeakThreadLocals();
 
+      // 这个同步队列的锁策略是公平锁,即先进先出
       this.handoffQueue = new SynchronousQueue<>(true);
       this.waiters = new AtomicInteger();
       this.sharedList = new CopyOnWriteArrayList<>();
@@ -141,6 +154,7 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
    public T borrow(long timeout, final TimeUnit timeUnit) throws InterruptedException
    {
       // Try the thread-local list first
+      // 优先从当前线程中的本地变量获取Connection
       final List<Object> list = threadList.get();
       for (int i = list.size() - 1; i >= 0; i--) {
          final Object entry = list.remove(i);
@@ -153,18 +167,24 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
 
       // Otherwise, scan the shared list ... then poll the handoff queue
       // waiters+=1
+      // 等待获取Connection线程的数量+=1
       final int waiting = waiters.incrementAndGet();
       try {
          for (T bagEntry : sharedList) {
+            // 如果把当前Connection的状态更改成功,
+            // 就说明当前线程已经获取到这个Connection对象了
             if (bagEntry.compareAndSet(STATE_NOT_IN_USE, STATE_IN_USE)) {
                // If we may have stolen another waiter's connection, request another bag add.
                if (waiting > 1) {
+                  // 异步去创建Connection
                   listener.addBagItem(waiting - 1);
                }
                return bagEntry;
             }
          }
-
+         // 如果当前线程没有获取到任何Connection对象.
+         // 则证明当前连接池内所有的Connection都处于被使用状态
+         // 然后一步去创建
          listener.addBagItem(waiting);
 
          timeout = timeUnit.toNanos(timeout);
@@ -197,23 +217,59 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
     */
    public void requite(final T bagEntry)
    {
+      /**
+       * 所谓Connection的回收,就是将持有Connection的对象改个状态.
+       * 将Connection的状态设置为空闲状态.
+       *
+       * 回收Connection不是主动的,只有上层业务调用了{@link Connection#close()} 方法,才会进行回收
+       */
       bagEntry.setState(STATE_NOT_IN_USE);
 
+      /**
+       * 当这个Connection的状态被修改以后,
+       */
       for (int i = 0; waiters.get() > 0; i++) {
+
          if (bagEntry.getState() != STATE_NOT_IN_USE || handoffQueue.offer(bagEntry)) {
+            // 如果这个Connection的状态不是STATE_NOT_IN_USE
+            // 那么这个Connection的状态只能是
+            // STATE_IN_USE 被其他线程拿去使用了
+            // STATE_REMOVED 被移除了
+            // STATE_RESERVED
             return;
          }
          else if ((i & 0xff) == 0xff) {
+            // 构造一个等差数列
+            // A1=255
+            // A2=255*1+1
+            // An=255n+n-1=256n-1
+            // 当i处于上面那个公式的值时,就会发生parkNanos
+            // 2021年9月1日14:09:56,为什么要这么做呢
             parkNanos(MICROSECONDS.toNanos(10));
          }
          else {
+            // 让出cpu,如果有其他线程正在等待获取Connection,
+            // 这里直接就给其他线程用了
             yield();
          }
       }
 
+      // 这个Connection直接被存储到本地线程中
       final List<Object> threadLocalList = threadList.get();
       threadLocalList.add(weakThreadLocals ? new WeakReference<>(bagEntry) : bagEntry);
    }
+
+
+   public static void main(String[] args) {
+
+      for(int i=0;i<200000;i++){
+         if((i & 0xff) == 0xff){
+            System.err.println(i);
+         }
+      }
+
+   }
+
 
    /**
     * Add a new object to the bag for others to borrow.
@@ -227,9 +283,13 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
          throw new IllegalStateException("ConcurrentBag has been closed, ignoring add()");
       }
 
+      // 新创建的Connection,被直接添加到
+      // 这个list中
       sharedList.add(bagEntry);
 
       // spin until a thread takes it or none are waiting
+      // 旋转直到有线程接受它或者没有线程在等待
+      // 向handoffQueue中插入新创建的Connection
       while (waiters.get() > 0 && !handoffQueue.offer(bagEntry)) {
          yield();
       }
@@ -248,6 +308,19 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
     */
    public boolean remove(final T bagEntry)
    {
+      /**
+       * 移除Connection的条件
+       *
+       * bagEntry.compareAndSet(STATE_IN_USE, STATE_REMOVED)==false
+       * 只有在bagEntry.state=STATE_NOT_IN_USE,STATE_REMOVED,STATE_RESERVED的状态下,才会返回false
+       *
+       * bagEntry.compareAndSet(STATE_RESERVED, STATE_REMOVED)==false
+       * 只有在bagEntry.state=STATE_NOT_IN_USE,STATE_IN_USE,STATE_RESERVED的状态下,才会返回false
+       *
+       * 所以,只有当bagEntry.state的状态为STATE_IN_USE或者为STATE_RESERVED的情况下,
+       * bagEntry.state的状态才能被设置为STATE_REMOVED
+       *
+       */
       if (!bagEntry.compareAndSet(STATE_IN_USE, STATE_REMOVED) && !bagEntry.compareAndSet(STATE_RESERVED, STATE_REMOVED) && !closed) {
          LOGGER.warn("Attempt to remove an object from the bag that was not borrowed or reserved: {}", bagEntry);
          return false;
@@ -301,6 +374,11 @@ public class ConcurrentBag<T extends IConcurrentBagEntry> implements AutoCloseab
    }
 
    /**
+    * 这个方法是用来使bag里的item处于"unavailable".
+    * 它主要用于当希望对<code>values(int)</code>方法返回的项进行操作时.
+    * reserved items可以通过<code>remove(T)</code>从bag中删除,而不需要unreserve.
+    * 未从bao中取出的item可以通过调用<code>unreserve(T)</code>方法再次借出.
+    * <p>
     * The method is used to make an item in the bag "unavailable" for
     * borrowing.  It is primarily used when wanting to operate on items
     * returned by the <code>values(int)</code> method.  Items that are

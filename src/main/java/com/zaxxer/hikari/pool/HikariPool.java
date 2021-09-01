@@ -75,10 +75,22 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 {
    private final Logger LOGGER = LoggerFactory.getLogger(HikariPool.class);
 
+   /**
+    * 连接池的状态:正常
+    */
    public static final int POOL_NORMAL = 0;
+   /**
+    * 连接池的状态:暂停
+    */
    public static final int POOL_SUSPENDED = 1;
+   /**
+    * 连接池的状态:关闭
+    */
    public static final int POOL_SHUTDOWN = 2;
 
+   /**
+    * 默认值为0，即正常状态
+    */
    public volatile int poolState;
 
    private final long ALIVE_BYPASS_WINDOW_MS = Long.getLong("com.zaxxer.hikari.aliveBypassWindowMs", MILLISECONDS.toMillis(500));
@@ -111,6 +123,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     */
    private final ConcurrentBag<PoolEntry> connectionBag;
 
+   /**
+    * 这是作甚的?
+    */
    private final ProxyLeakTaskFactory leakTaskFactory;
    private final SuspendResumeLock suspendResumeLock;
 
@@ -190,6 +205,9 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
     */
    public Connection getConnection(final long hardTimeout) throws SQLException
    {
+      // 每次能有多少个线程同时获取Connection,取决于suspendResumeLock的实现
+      // 即需要指定isAllowPoolSuspension为true
+      // 如果isAllowPoolSuspension为true,则最毒允许1000个线程同时进来获取Connection
       suspendResumeLock.acquire();
       final long startTime = currentTime();
 
@@ -230,8 +248,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    }
 
    /**
-    * Shutdown the pool, closing all idle connections and aborting or closing
-    * active connections.
+    * 关闭连接池,关闭所有空闲的Connection,并且中止或关闭活跃的Connection.
     *
     * @throws InterruptedException thrown if the thread is interrupted during shutdown
     */
@@ -241,6 +258,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
          poolState = POOL_SHUTDOWN;
 
          if (addConnectionExecutor == null) { // pool never started
+            // 证明这个连接池从来没有使用过
             return;
          }
 
@@ -286,7 +304,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    }
 
    /**
-    * Evict a Connection from the pool.
+    * 从连接池中驱逐一个Connection.
     *
     * @param connection the Connection to evict (actually a {@link ProxyConnection})
     */
@@ -423,6 +441,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
    @Override
    public synchronized void resumePool()
    {
+      // 连接池从暂停状态中恢复
       if (poolState == POOL_SUSPENDED) {
          poolState = POOL_NORMAL;
          fillPool();
@@ -450,12 +469,15 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
    /**
     * Recycle PoolEntry (add back to the pool)
+    * 回收Connection
+    *
     *
     * @param poolEntry the PoolEntry to recycle
     */
    @Override
    void recycle(final PoolEntry poolEntry)
    {
+
       metricsTracker.recordConnectionUsage(poolEntry);
 
       connectionBag.requite(poolEntry);
@@ -463,6 +485,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
    /**
     * Permanently close the real (underlying) connection (eat any exception).
+    * 永久关闭真实的(底层的)Connection(处理任何异常).
     *
     * @param poolEntry poolEntry having the connection to close
     * @param closureReason reason to close
@@ -601,13 +624,17 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
 
       final long startTime = currentTime();
       do {
+         // 创建一个PoolEntry
          final PoolEntry poolEntry = createPoolEntry();
          if (poolEntry != null) {
+            // 如果连接池内最小空闲Connection的数量大于0
+            // 则直接将这个连接加入到连接池中,不能浪费了不是
             if (config.getMinimumIdle() > 0) {
                connectionBag.add(poolEntry);
                LOGGER.debug("{} - Added connection {}", poolName, poolEntry.connection);
             }
             else {
+               // 否则直接关闭Connection,这个新创建的Connection就这样被销毁了
                quietlyCloseConnection(poolEntry.close(), "(initialization check complete and minimumIdle is zero)");
             }
 
@@ -788,6 +815,7 @@ public final class HikariPool extends PoolBase implements HikariPoolMXBean, IBag
       }
 
       /**
+       * 判断是否应该创建其他连接
        * We only create connections if we need another idle connection or have threads still waiting
        * for a new connection.  Otherwise we bail out of the request to create.
        *

@@ -803,6 +803,8 @@ public class HikariConfig implements HikariConfigMXBean
     * Determine whether HikariCP will self-register {@link HikariConfigMXBean} and {@link HikariPoolMXBean} instances
     * in JMX.
     *
+    * 确定HikariCP是否会在JMX中自注册{@link HikariConfigMXBean}和 {@link HikariPoolMXBean}实例.
+    *
     * @return {@code true} if HikariCP will register MXBeans, {@code false} if it will not
     */
    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
